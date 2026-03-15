@@ -34,6 +34,9 @@ pub struct Module<'runtime> {
     // to keep the module content in memory
     content: Vec<u8>,
     wasi_ctx: WasiCtx,
+    // cached pointer arrays for WASI paths (must outlive wasm_runtime_set_wasi_args call)
+    preopen_real_ptrs: Vec<*const c_char>,
+    preopen_mapped_ptrs: Vec<*const c_char>,
     _phantom: PhantomData<&'runtime Runtime>,
 }
 
@@ -109,6 +112,8 @@ impl<'runtime> Module<'runtime> {
             module,
             content,
             wasi_ctx: WasiCtx::default(),
+            preopen_real_ptrs: Vec::new(),
+            preopen_mapped_ptrs: Vec::new(),
             _phantom: PhantomData,
         })
     }
@@ -119,16 +124,31 @@ impl<'runtime> Module<'runtime> {
     pub fn set_wasi_context(&mut self, wasi_ctx: WasiCtx) {
         self.wasi_ctx = wasi_ctx;
 
-        let real_paths = if self.wasi_ctx.get_preopen_real_paths().is_empty() {
+        // Build pointer arrays from CStrings for FFI.
+        // These must be stored on self to outlive the wasm_runtime_set_wasi_args call.
+        self.preopen_real_ptrs = self
+            .wasi_ctx
+            .get_preopen_real_paths()
+            .iter()
+            .map(|s| s.as_ptr() as *const c_char)
+            .collect();
+        self.preopen_mapped_ptrs = self
+            .wasi_ctx
+            .get_preopen_mapped_paths()
+            .iter()
+            .map(|s| s.as_ptr() as *const c_char)
+            .collect();
+
+        let real_paths = if self.preopen_real_ptrs.is_empty() {
             ptr::null_mut()
         } else {
-            self.wasi_ctx.get_preopen_real_paths().as_ptr() as *mut *const c_char
+            self.preopen_real_ptrs.as_ptr() as *mut *const c_char
         };
 
-        let mapped_paths = if self.wasi_ctx.get_preopen_mapped_paths().is_empty() {
+        let mapped_paths = if self.preopen_mapped_ptrs.is_empty() {
             ptr::null_mut()
         } else {
-            self.wasi_ctx.get_preopen_mapped_paths().as_ptr() as *mut *const c_char
+            self.preopen_mapped_ptrs.as_ptr() as *mut *const c_char
         };
 
         let env = if self.wasi_ctx.get_env_vars().is_empty() {
