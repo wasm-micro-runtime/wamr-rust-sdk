@@ -32,7 +32,7 @@ keywords = ["api-bindings", "wasm", "webassembly"]
 wamr-sys = { path = "crates/wamr-sys", version = "1.0.0" }
 
 [target.'cfg( target_os = "espidf" )'.dependencies]
-esp-idf-sys = { version = "0.36", optional = true }
+esp-idf-sys = { version = "0.37", optional = true }
 
 [[package.metadata.esp-idf-sys.extra_components]]
 bindings_header = "./crates/wamr-sys/wasm-micro-runtime/core/iwasm/include/wasm_export.h"
