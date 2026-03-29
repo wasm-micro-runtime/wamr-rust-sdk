@@ -182,12 +182,13 @@ To build the `wamr-sys` and `wamr-rust-sdk` crates, follow these steps:
 
 ##### For espidf targets
 
-1. Get the latest information from [The Rust on ESP Book](https://docs.esp-rs.org/book/writing-your-own-application/index.html).
+1. Get the latest information from [The Rust on ESP Book](https://docs.espressif.com/projects/rust/book/application-development/index.html).
 2. Please make sure you have installed all [prerequisites](https://github.com/esp-rs/esp-idf-template?tab=readme-ov-file#prerequisites) first!
-3. Generate projects from templates following the instructions in [The Rust on ESP Book](https://docs.esp-rs.org/book/writing-your-own-application/generate-project/index.html).
+3. Generate projects from templates following the instructions in [The Rust on ESP Book](https://docs.espressif.com/projects/rust/book/getting-started/using-esp-generate.html).
 
    ``` sh
-   $ cargo generate esp-rs/esp-idf-template cargo
+   $ cargo install esp-generate --locked
+   $ esp-generate
    # follow prompts from the command
    ```
 
