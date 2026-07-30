@@ -40,7 +40,7 @@ jobs:
     # ubuntu 24.04 supports have LLVM 18(https://apt.llvm.org/noble/dists/),
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           submodules: true
 
@@ -78,7 +78,7 @@ jobs:
     # ubuntu 24.04 supports LLVM 18(https://apt.llvm.org/noble/dists/),
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           submodules: true
 
