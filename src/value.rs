@@ -5,6 +5,8 @@
 
 //! a wasm value. Always used as function parameters and results
 
+use alloc::vec::Vec;
+
 #[derive(Debug, PartialEq)]
 pub enum WasmValue {
     Void,
@@ -22,23 +24,23 @@ impl WasmValue {
                 vec![]
             }
             WasmValue::I32(value) => {
-                let in_u32_array = unsafe { std::mem::transmute::<i32, [u32; 1]>(value) };
+                let in_u32_array = unsafe { core::mem::transmute::<i32, [u32; 1]>(value) };
                 vec![in_u32_array[0]]
             }
             WasmValue::I64(value) => {
-                let in_u32_array = unsafe { std::mem::transmute::<i64, [u32; 2]>(value) };
+                let in_u32_array = unsafe { core::mem::transmute::<i64, [u32; 2]>(value) };
                 vec![in_u32_array[0], in_u32_array[1]]
             }
             WasmValue::F32(value) => {
-                let in_u32_array = unsafe { std::mem::transmute::<f32, [u32; 1]>(value) };
+                let in_u32_array = unsafe { core::mem::transmute::<f32, [u32; 1]>(value) };
                 vec![in_u32_array[0]]
             }
             WasmValue::F64(value) => {
-                let in_u32_array = unsafe { std::mem::transmute::<f64, [u32; 2]>(value) };
+                let in_u32_array = unsafe { core::mem::transmute::<f64, [u32; 2]>(value) };
                 vec![in_u32_array[0], in_u32_array[1]]
             }
             WasmValue::V128(value) => {
-                let in_u32_array = unsafe { std::mem::transmute::<i128, [u32; 4]>(value) };
+                let in_u32_array = unsafe { core::mem::transmute::<i128, [u32; 4]>(value) };
                 vec![
                     in_u32_array[0],
                     in_u32_array[1],
@@ -51,27 +53,27 @@ impl WasmValue {
 
     pub fn decode_to_i32(binary: &[u32]) -> WasmValue {
         let binary: [u32; 1] = [binary[0]];
-        WasmValue::I32(unsafe { std::mem::transmute::<[u32; 1], i32>(binary) })
+        WasmValue::I32(unsafe { core::mem::transmute::<[u32; 1], i32>(binary) })
     }
 
     pub fn decode_to_f32(binary: &[u32]) -> WasmValue {
         let binary: [u32; 1] = [binary[0]];
-        WasmValue::F32(unsafe { std::mem::transmute::<[u32; 1], f32>(binary) })
+        WasmValue::F32(unsafe { core::mem::transmute::<[u32; 1], f32>(binary) })
     }
 
     pub fn decode_to_i64(binary: &[u32]) -> WasmValue {
         let binary: [u32; 2] = [binary[0], binary[1]];
-        WasmValue::I64(unsafe { std::mem::transmute::<[u32; 2], i64>(binary) })
+        WasmValue::I64(unsafe { core::mem::transmute::<[u32; 2], i64>(binary) })
     }
 
     pub fn decode_to_f64(binary: &[u32]) -> WasmValue {
         let binary: [u32; 2] = [binary[0], binary[1]];
-        WasmValue::F64(unsafe { std::mem::transmute::<[u32; 2], f64>(binary) })
+        WasmValue::F64(unsafe { core::mem::transmute::<[u32; 2], f64>(binary) })
     }
 
     pub fn decode_to_v128(binary: &[u32]) -> WasmValue {
         let binary: [u32; 4] = [binary[0], binary[1], binary[2], binary[3]];
-        WasmValue::V128(unsafe { std::mem::transmute::<[u32; 4], i128>(binary) })
+        WasmValue::V128(unsafe { core::mem::transmute::<[u32; 4], i128>(binary) })
     }
 }
 

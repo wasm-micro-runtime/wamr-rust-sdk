@@ -64,11 +64,12 @@
 //! The rust code to call the function would be:
 //!
 //! ```
+//! use std::path::PathBuf;
+//!
 //! use wamr_rust_sdk::{
 //!     runtime::Runtime, module::Module, instance::Instance, function::Function,
 //!     value::WasmValue, RuntimeError
 //! };
-//! use std::path::PathBuf;
 //!
 //! fn main() -> Result<(), RuntimeError> {
 //!     let runtime = Runtime::new()?;
@@ -106,12 +107,13 @@
 //! The rust code to call the *add* function is like this:
 //!
 //! ```
+//! use std::ffi::c_void;
+//! use std::path::PathBuf;
+//!
 //! use wamr_rust_sdk::{
 //!     runtime::Runtime, module::Module, instance::Instance, function::Function,
 //!     value::WasmValue, RuntimeError
 //! };
-//! use std::path::PathBuf;
-//! use std::ffi::c_void;
 //!
 //! extern "C" fn extra() -> i32 {
 //!     100
@@ -141,9 +143,13 @@
 //! ```
 //!
 
-use std::error;
-use std::fmt;
-use std::io;
+#![cfg_attr(not(feature = "std"), no_std)]
+
+#[macro_use]
+extern crate alloc;
+
+use alloc::string::String;
+use core::{error, fmt};
 pub use wamr_sys as sys;
 
 pub mod function;
@@ -168,6 +174,7 @@ pub enum RuntimeError {
     /// Runtime initialization error.
     InitializationFailure,
     /// file operation error. usually while loading(compilation) a .wasm
+    #[cfg(feature = "std")]
     WasmFileFSError(std::io::Error),
     /// A compilation error. usually means that the .wasm file is invalid
     CompilationError(String),
@@ -184,6 +191,7 @@ impl fmt::Display for RuntimeError {
         match self {
             RuntimeError::NotImplemented => write!(f, "Not implemented"),
             RuntimeError::InitializationFailure => write!(f, "Runtime initialization failure"),
+            #[cfg(feature = "std")]
             RuntimeError::WasmFileFSError(e) => write!(f, "Wasm file operation error: {}", e),
             RuntimeError::CompilationError(e) => write!(f, "Wasm compilation error: {}", e),
             RuntimeError::InstantiationFailure(e) => write!(f, "Wasm instantiation failure: {}", e),
@@ -200,14 +208,16 @@ impl fmt::Display for RuntimeError {
 impl error::Error for RuntimeError {
     fn source(&self) -> Option<&(dyn error::Error + 'static)> {
         match self {
+            #[cfg(feature = "std")]
             RuntimeError::WasmFileFSError(e) => Some(e),
             _ => None,
         }
     }
 }
 
-impl From<io::Error> for RuntimeError {
-    fn from(e: io::Error) -> Self {
+#[cfg(feature = "std")]
+impl From<std::io::Error> for RuntimeError {
+    fn from(e: std::io::Error) -> Self {
         RuntimeError::WasmFileFSError(e)
     }
 }

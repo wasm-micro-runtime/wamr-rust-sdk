@@ -3,9 +3,10 @@
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  */
 
-/// This is a wrapper of a host defined(Rust) function.
-use std::ffi::{c_void, CString};
-use std::ptr;
+//! This is a wrapper of a host defined(Rust) function.
+
+use alloc::{ffi::CString, vec::Vec};
+use core::{ffi::c_void, ptr};
 
 use wamr_sys::NativeSymbol;
 
