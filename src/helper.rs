@@ -3,8 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  */
 
-use std::ffi::{c_char, CStr};
-use std::string::String;
+use alloc::{string::{String, ToString}, vec::Vec};
+use core::ffi::{c_char, CStr};
 
 pub const DEFAULT_ERROR_BUF_SIZE: usize = 128;
 

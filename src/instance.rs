@@ -8,6 +8,7 @@
 
 #![allow(unused_variables)]
 
+use alloc::string::String;
 use core::{ffi::c_char, marker::PhantomData};
 
 use wamr_sys::{

@@ -7,7 +7,8 @@
 //! Every process should have only one instance of this runtime by call
 //! `Runtime::new()` or `Runtime::builder().build()` once.
 
-use std::ffi::c_void;
+use alloc::vec::Vec;
+use core::ffi::c_void;
 
 use wamr_sys::{
     mem_alloc_type_t_Alloc_With_Pool, mem_alloc_type_t_Alloc_With_System_Allocator,
@@ -68,15 +69,19 @@ pub struct RuntimeBuilder {
 /// Can't build() until config allocator mode
 impl Default for RuntimeBuilder {
     fn default() -> Self {
-        let args = RuntimeInitArgs::default();
-        RuntimeBuilder {
-            args,
-            host_functions: HostFunctionList::new("host"),
-        }
+        Self::new("host")
     }
 }
 
 impl RuntimeBuilder {
+    /// create a named module runtime builder
+    pub fn new(name: &str) -> Self {
+        Self {
+            args: RuntimeInitArgs::default(),
+            host_functions: HostFunctionList::new(name),
+        }
+    }
+
     /// system allocator mode
     /// allocate memory from system allocator for runtime consumed memory
     pub fn use_system_allocator(mut self) -> RuntimeBuilder {

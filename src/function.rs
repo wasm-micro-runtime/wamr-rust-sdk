@@ -6,7 +6,9 @@
 //! an exported wasm function.
 //! get one via `Function::find_export_func()`
 
-use std::{ffi::CString, marker::PhantomData};
+use alloc::{ffi::CString, vec::Vec};
+use core::marker::PhantomData;
+
 use wamr_sys::{
     wasm_exec_env_t, wasm_func_get_param_count, wasm_func_get_result_count,
     wasm_func_get_result_types, wasm_function_inst_t, wasm_runtime_call_wasm,
