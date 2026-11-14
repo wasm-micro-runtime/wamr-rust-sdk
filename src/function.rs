@@ -274,6 +274,37 @@ mod tests {
     }
 
     #[test]
+    fn test_func_in_wasm32_wasi_w_several_wasi_entries() {
+        let runtime = Runtime::new().unwrap();
+
+        let mut d = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        d.push("resources/test");
+        d.push("gcd_wasm32_wasi.wasm");
+        let mut module = Module::from_file(&runtime, d.as_path()).unwrap();
+
+        // more than one entry in every list handed to WAMR as a `char **`
+        let wasi_ctx = WasiCtxBuilder::new()
+            .set_pre_open_path(
+                vec![".", "src"],
+                vec!["/resources::resources", "/crates::crates"],
+            )
+            .set_allowed_address(vec!["1.2.3.4/32", "5.6.7.8/24"])
+            .set_allowed_dns(vec!["example.com", "example.org"])
+            .build();
+        module.set_wasi_context(wasi_ctx);
+
+        let instance = Instance::new(&runtime, &module, 1024 * 64);
+        assert!(instance.is_ok(), "{:?}", instance.err());
+        let instance: &Instance = &instance.unwrap();
+
+        let function = Function::find_export_func(instance, "gcd").unwrap();
+
+        let params: Vec<WasmValue> = vec![WasmValue::I32(9), WasmValue::I32(27)];
+        let result = function.call(instance, &params);
+        assert_eq!(result.unwrap(), vec![WasmValue::I32(9)]);
+    }
+
+    #[test]
     fn test_func_in_wasm32_wasi_w_args() {
         let runtime = Runtime::new().unwrap();
 

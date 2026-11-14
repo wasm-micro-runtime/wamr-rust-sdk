@@ -10,14 +10,22 @@ use std::{ffi::c_char, ffi::CString, vec::Vec};
 #[derive(Debug, Default)]
 struct PreOpen {
     real_paths: Vec<CString>,
+    // every element is a ptr to a real_paths element
+    real_paths_cstr_ptrs: Vec<*const c_char>,
     mapped_paths: Vec<CString>,
+    // every element is a ptr to a mapped_paths element
+    mapped_paths_cstr_ptrs: Vec<*const c_char>,
 }
 
 #[derive(Debug, Default)]
 pub struct WasiCtxBuilder {
     pre_open: PreOpen,
     allowed_address: Vec<CString>,
+    // every element is a ptr to an allowed_address element
+    allowed_address_cstr_ptrs: Vec<*const c_char>,
     allowed_dns: Vec<CString>,
+    // every element is a ptr to an allowed_dns element
+    allowed_dns_cstr_ptrs: Vec<*const c_char>,
     env: Vec<CString>,
     // every element is a ptr to an env element
     env_cstr_ptrs: Vec<*const c_char>,
@@ -30,11 +38,20 @@ pub struct WasiCtxBuilder {
 pub struct WasiCtx {
     pre_open: PreOpen,
     allowed_address: Vec<CString>,
+    allowed_address_cstr_ptrs: Vec<*const c_char>,
     allowed_dns: Vec<CString>,
+    allowed_dns_cstr_ptrs: Vec<*const c_char>,
     env: Vec<CString>,
     env_cstr_ptrs: Vec<*const c_char>,
     args: Vec<CString>,
     args_cstr_ptrs: Vec<*const c_char>,
+}
+
+/// A `CString` is not a `char *`, so a `Vec<CString>` can't be handed to WAMR
+/// as a `char **`. Collect the pointers of its elements instead. They stay
+/// valid as long as the strings are alive, even if the `Vec` is moved.
+fn cstr_ptrs(strings: &[CString]) -> Vec<*const c_char> {
+    strings.iter().map(|s| s.as_ptr()).collect()
 }
 
 impl WasiCtxBuilder {
@@ -46,7 +63,9 @@ impl WasiCtxBuilder {
         WasiCtx {
             pre_open: self.pre_open,
             allowed_address: self.allowed_address,
+            allowed_address_cstr_ptrs: self.allowed_address_cstr_ptrs,
             allowed_dns: self.allowed_dns,
+            allowed_dns_cstr_ptrs: self.allowed_dns_cstr_ptrs,
             env: self.env,
             env_cstr_ptrs: self.env_cstr_ptrs,
             args: self.args,
@@ -67,11 +86,13 @@ impl WasiCtxBuilder {
             .iter()
             .map(|s| CString::new(s.as_bytes()).unwrap())
             .collect::<Vec<CString>>();
+        self.pre_open.real_paths_cstr_ptrs = cstr_ptrs(&self.pre_open.real_paths);
 
         self.pre_open.mapped_paths = mapped_paths
             .iter()
             .map(|s| CString::new(s.as_bytes()).unwrap())
             .collect::<Vec<CString>>();
+        self.pre_open.mapped_paths_cstr_ptrs = cstr_ptrs(&self.pre_open.mapped_paths);
 
         self
     }
@@ -103,6 +124,7 @@ impl WasiCtxBuilder {
             .iter()
             .map(|s| CString::new(s.as_bytes()).unwrap())
             .collect::<Vec<CString>>();
+        self.allowed_dns_cstr_ptrs = cstr_ptrs(&self.allowed_dns);
 
         self
     }
@@ -115,6 +137,7 @@ impl WasiCtxBuilder {
             .iter()
             .map(|s| CString::new(s.as_bytes()).unwrap())
             .collect::<Vec<CString>>();
+        self.allowed_address_cstr_ptrs = cstr_ptrs(&self.allowed_address);
 
         self
     }
@@ -142,16 +165,32 @@ impl WasiCtx {
         &self.pre_open.real_paths
     }
 
+    pub fn get_preopen_real_paths_ptrs(&self) -> &Vec<*const c_char> {
+        &self.pre_open.real_paths_cstr_ptrs
+    }
+
     pub fn get_preopen_mapped_paths(&self) -> &Vec<CString> {
         &self.pre_open.mapped_paths
+    }
+
+    pub fn get_preopen_mapped_paths_ptrs(&self) -> &Vec<*const c_char> {
+        &self.pre_open.mapped_paths_cstr_ptrs
     }
 
     pub fn get_allowed_address(&self) -> &Vec<CString> {
         &self.allowed_address
     }
 
+    pub fn get_allowed_address_ptrs(&self) -> &Vec<*const c_char> {
+        &self.allowed_address_cstr_ptrs
+    }
+
     pub fn get_allowed_dns(&self) -> &Vec<CString> {
         &self.allowed_dns
+    }
+
+    pub fn get_allowed_dns_ptrs(&self) -> &Vec<*const c_char> {
+        &self.allowed_dns_cstr_ptrs
     }
 
     pub fn get_env_vars(&self) -> &Vec<CString> {
@@ -174,6 +213,7 @@ impl WasiCtx {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::ffi::CStr;
 
     #[test]
     fn test_wasi_ctx_build() {
@@ -213,5 +253,36 @@ mod tests {
             "HOME=/home/xxx"
         );
         assert_eq!(env_vars_iter.next(), None);
+    }
+
+    #[test]
+    fn test_wasi_ctx_ptrs() {
+        let wasi_ctx = WasiCtxBuilder::new()
+            .set_pre_open_path(vec!["a", "b/c"], vec!["/x::a", "/y::b/c"])
+            .set_allowed_address(vec!["1.2.3.4/32", "5.6.7.8/24"])
+            .set_allowed_dns(vec!["example.com", "example.org"])
+            .build();
+
+        let check = |strings: &Vec<CString>, ptrs: &Vec<*const c_char>| {
+            assert_eq!(strings.len(), 2);
+            assert_eq!(ptrs.len(), strings.len());
+            for (string, ptr) in strings.iter().zip(ptrs) {
+                assert_eq!(unsafe { CStr::from_ptr(*ptr) }, string.as_c_str());
+            }
+        };
+
+        check(
+            wasi_ctx.get_preopen_real_paths(),
+            wasi_ctx.get_preopen_real_paths_ptrs(),
+        );
+        check(
+            wasi_ctx.get_preopen_mapped_paths(),
+            wasi_ctx.get_preopen_mapped_paths_ptrs(),
+        );
+        check(
+            wasi_ctx.get_allowed_address(),
+            wasi_ctx.get_allowed_address_ptrs(),
+        );
+        check(wasi_ctx.get_allowed_dns(), wasi_ctx.get_allowed_dns_ptrs());
     }
 }

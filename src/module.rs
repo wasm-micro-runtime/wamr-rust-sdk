@@ -122,13 +122,13 @@ impl<'runtime> Module<'runtime> {
         let real_paths = if self.wasi_ctx.get_preopen_real_paths().is_empty() {
             ptr::null_mut()
         } else {
-            self.wasi_ctx.get_preopen_real_paths().as_ptr() as *mut *const c_char
+            self.wasi_ctx.get_preopen_real_paths_ptrs().as_ptr() as *mut *const c_char
         };
 
         let mapped_paths = if self.wasi_ctx.get_preopen_mapped_paths().is_empty() {
             ptr::null_mut()
         } else {
-            self.wasi_ctx.get_preopen_mapped_paths().as_ptr() as *mut *const c_char
+            self.wasi_ctx.get_preopen_mapped_paths_ptrs().as_ptr() as *mut *const c_char
         };
 
         let env = if self.wasi_ctx.get_env_vars().is_empty() {
@@ -159,7 +159,7 @@ impl<'runtime> Module<'runtime> {
             let ns_lookup_pool = if self.wasi_ctx.get_allowed_dns().is_empty() {
                 ptr::null_mut()
             } else {
-                self.wasi_ctx.get_allowed_dns().as_ptr() as *mut *const c_char
+                self.wasi_ctx.get_allowed_dns_ptrs().as_ptr() as *mut *const c_char
             };
 
             wasm_runtime_set_wasi_ns_lookup_pool(
@@ -171,7 +171,7 @@ impl<'runtime> Module<'runtime> {
             let addr_pool = if self.wasi_ctx.get_allowed_address().is_empty() {
                 ptr::null_mut()
             } else {
-                self.wasi_ctx.get_allowed_address().as_ptr() as *mut *const c_char
+                self.wasi_ctx.get_allowed_address_ptrs().as_ptr() as *mut *const c_char
             };
             wasm_runtime_set_wasi_addr_pool(
                 self.get_inner_module(),
