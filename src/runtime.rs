@@ -21,6 +21,8 @@ use crate::{host_function::HostFunctionList, RuntimeError};
 #[derive(Debug)]
 pub struct Runtime {
     host_functions: HostFunctionList,
+    // to keep the memory pool alive as long as the runtime uses it
+    memory_pool: Vec<u8>,
 }
 
 impl Runtime {
@@ -44,6 +46,7 @@ impl Runtime {
         match unsafe { wasm_runtime_init() } {
             true => Ok(Runtime {
                 host_functions: HostFunctionList::new("empty"),
+                memory_pool: Vec::new(),
             }),
             false => Err(RuntimeError::InitializationFailure),
         }
@@ -63,6 +66,7 @@ impl Drop for Runtime {
 pub struct RuntimeBuilder {
     args: RuntimeInitArgs,
     host_functions: HostFunctionList,
+    memory_pool: Vec<u8>,
 }
 
 /// Can't build() until config allocator mode
@@ -72,6 +76,7 @@ impl Default for RuntimeBuilder {
         RuntimeBuilder {
             args,
             host_functions: HostFunctionList::new("host"),
+            memory_pool: Vec::new(),
         }
     }
 }
@@ -84,12 +89,17 @@ impl RuntimeBuilder {
         self
     }
 
-    /// system allocator mode
+    /// memory pool mode
     /// allocate memory from pool, as a pre-allocated buffer, for runtime consumed memory
-    pub fn use_memory_pool(mut self, mut pool: Vec<u8>) -> RuntimeBuilder {
+    ///
+    /// The runtime takes the ownership of the pool and releases it when it is dropped.
+    pub fn use_memory_pool(mut self, pool: Vec<u8>) -> RuntimeBuilder {
+        // The buffer of a `Vec` doesn't move when the `Vec` itself is moved,
+        // so the pointer stays valid once the pool is handed to the `Runtime`.
+        self.memory_pool = pool;
         self.args.mem_alloc_type = mem_alloc_type_t_Alloc_With_Pool;
-        self.args.mem_alloc_option.pool.heap_buf = pool.as_mut_ptr() as *mut c_void;
-        self.args.mem_alloc_option.pool.heap_size = pool.len() as u32;
+        self.args.mem_alloc_option.pool.heap_buf = self.memory_pool.as_mut_ptr() as *mut c_void;
+        self.args.mem_alloc_option.pool.heap_size = self.memory_pool.len() as u32;
         self
     }
 
@@ -136,6 +146,7 @@ impl RuntimeBuilder {
         } {
             true => Ok(Runtime {
                 host_functions: self.host_functions,
+                memory_pool: self.memory_pool,
             }),
             false => Err(RuntimeError::InitializationFailure),
         }
@@ -189,6 +200,26 @@ mod tests {
         let small_buf = unsafe { wasm_runtime_malloc(16) };
         assert!(!small_buf.is_null());
         unsafe { wasm_runtime_free(small_buf) };
+    }
+
+    #[test]
+    #[ignore]
+    fn test_runtime_builder_memory_pool() {
+        // big enough to be given back to the system as soon as it is freed
+        let pool = vec![0u8; 1024 * 1024];
+        let pool_range = pool.as_ptr_range();
+
+        let runtime = Runtime::builder().use_memory_pool(pool).build();
+        assert!(runtime.is_ok());
+
+        /* the runtime allocates from the pool, which is still alive */
+        let small_buf = unsafe { wasm_runtime_malloc(16) };
+        assert!(!small_buf.is_null());
+        assert!(pool_range.contains(&(small_buf as *const u8)));
+        unsafe {
+            std::ptr::write_bytes(small_buf as *mut u8, 0xa5, 16);
+            wasm_runtime_free(small_buf);
+        }
     }
 
     #[test]
