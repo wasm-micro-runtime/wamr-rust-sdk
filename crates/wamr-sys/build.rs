@@ -47,42 +47,32 @@ fn check_is_espidf() -> bool {
     is_espidf
 }
 
-fn get_feature_flags() -> (String, String, String, String, String, String) {
-    let enable_custom_section = if cfg!(feature = "custom-section") {
-        "1"
-    } else {
-        "0"
-    };
-    let enable_dump_call_stack = if cfg!(feature = "dump-call-stack") {
-        "1"
-    } else {
-        "0"
-    };
-    let enable_llvm_jit = if cfg!(feature = "llvmjit") { "1" } else { "0" };
-    let enable_multi_module = if cfg!(feature = "multi-module") {
-        "1"
-    } else {
-        "0"
-    };
-    let enable_name_section = if cfg!(feature = "name-section") {
-        "1"
-    } else {
-        "0"
-    };
-    let disable_hw_bound_check = if cfg!(feature = "hw-bound-check") {
-        "0"
-    } else {
-        "1"
-    };
+struct FeatureFlags {
+    enable_custom_section: String,
+    enable_dump_call_stack: String,
+    enable_llvm_jit: String,
+    enable_multi_module: String,
+    enable_name_section: String,
+    disable_hw_bound_check: String,
+    enable_exception_handling: String,
+    enable_shared_memory: String,
+    enable_wasi_threads: String,
+    enable_fast_interp: String,
+}
 
-    (
-        enable_custom_section.to_string(),
-        enable_dump_call_stack.to_string(),
-        enable_llvm_jit.to_string(),
-        enable_multi_module.to_string(),
-        enable_name_section.to_string(),
-        disable_hw_bound_check.to_string(),
-    )
+fn get_feature_flags() -> FeatureFlags {
+    FeatureFlags {
+        enable_custom_section: if cfg!(feature = "custom-section") { "1" } else { "0" }.to_string(),
+        enable_dump_call_stack: if cfg!(feature = "dump-call-stack") { "1" } else { "0" }.to_string(),
+        enable_llvm_jit: if cfg!(feature = "llvmjit") { "1" } else { "0" }.to_string(),
+        enable_multi_module: if cfg!(feature = "multi-module") { "1" } else { "0" }.to_string(),
+        enable_name_section: if cfg!(feature = "name-section") { "1" } else { "0" }.to_string(),
+        disable_hw_bound_check: if cfg!(feature = "hw-bound-check") { "0" } else { "1" }.to_string(),
+        enable_exception_handling: if cfg!(feature = "exception-handling") { "1" } else { "0" }.to_string(),
+        enable_shared_memory: if cfg!(feature = "shared-memory") { "1" } else { "0" }.to_string(),
+        enable_wasi_threads: if cfg!(feature = "wasi-threads") { "1" } else { "0" }.to_string(),
+        enable_fast_interp: if cfg!(feature = "fast-interp") { "1" } else { "0" }.to_string(),
+    }
 }
 
 fn link_llvm_libraries(llvm_cfg_path: &String, enable_llvm_jit: &String) {
@@ -111,32 +101,28 @@ fn link_llvm_libraries(llvm_cfg_path: &String, enable_llvm_jit: &String) {
 
 fn setup_config(
     wamr_root: &PathBuf,
-    feature_flags: (String, String, String, String, String, String),
+    feature_flags: FeatureFlags,
 ) -> Config {
-    let (
-        enable_custom_section,
-        enable_dump_call_stack,
-        enable_llvm_jit,
-        enable_multi_module,
-        enable_name_section,
-        disalbe_hw_bound_check,
-    ) = feature_flags;
-
     let mut cfg = Config::new(wamr_root);
     cfg.define("WAMR_BUILD_AOT", "1")
         .define("WAMR_BUILD_INTERP", "1")
-        .define("WAMR_BUILD_FAST_INTERP", "1")
-        .define("WAMR_BUILD_JIT", &enable_llvm_jit)
+        .define("WAMR_BUILD_FAST_INTERP", &feature_flags.enable_fast_interp)
+        .define("WAMR_BUILD_JIT", &feature_flags.enable_llvm_jit)
         .define("WAMR_BUILD_BULK_MEMORY", "1")
         .define("WAMR_BUILD_REF_TYPES", "1")
         .define("WAMR_BUILD_SIMD", "1")
         .define("WAMR_BUILD_LIBC_WASI", "1")
         .define("WAMR_BUILD_LIBC_BUILTIN", "0")
-        .define("WAMR_DISABLE_HW_BOUND_CHECK", &disalbe_hw_bound_check)
-        .define("WAMR_BUILD_MULTI_MODULE", &enable_multi_module)
-        .define("WAMR_BUILD_DUMP_CALL_STACK", &enable_dump_call_stack)
-        .define("WAMR_BUILD_CUSTOM_NAME_SECTION", &enable_name_section)
-        .define("WAMR_BUILD_LOAD_CUSTOM_SECTION", &enable_custom_section);
+        .define("WAMR_DISABLE_HW_BOUND_CHECK", &feature_flags.disable_hw_bound_check)
+        .define("WAMR_DISABLE_STACK_HW_BOUND_CHECK", &feature_flags.disable_hw_bound_check)
+        .define("WAMR_BUILD_MULTI_MODULE", &feature_flags.enable_multi_module)
+        .define("WAMR_BUILD_DUMP_CALL_STACK", &feature_flags.enable_dump_call_stack)
+        .define("WAMR_BUILD_CUSTOM_NAME_SECTION", &feature_flags.enable_name_section)
+        .define("WAMR_BUILD_LOAD_CUSTOM_SECTION", &feature_flags.enable_custom_section)
+        .define("WAMR_BUILD_EXCE_HANDLING", &feature_flags.enable_exception_handling)
+        .define("WAMR_BUILD_SHARED_MEMORY", &feature_flags.enable_shared_memory)
+        .define("WAMR_BUILD_LIB_WASI_THREADS", &feature_flags.enable_wasi_threads)
+        .define("WAMR_BUILD_THREAD_MGR", &feature_flags.enable_shared_memory);
 
     // always assume non-empty strings for these environment variables
 
@@ -153,7 +139,7 @@ fn setup_config(
     }
 
     if let Ok(llvm_cfg_path) = env::var("LLVM_LIB_CFG_PATH") {
-        link_llvm_libraries(&llvm_cfg_path, &enable_llvm_jit);
+        link_llvm_libraries(&llvm_cfg_path, &feature_flags.enable_llvm_jit);
         cfg.define("LLVM_DIR", &llvm_cfg_path);
     }
 
@@ -224,7 +210,11 @@ fn main() {
         // because the ESP-IDF build procedure differs from the regular one
         // (build internally by esp-idf-sys),
         build_wamr_libraries(&wamr_root);
-        build_wamrc(&wamr_root);
+
+        // Only build the AOT compiler (wamrc) when LLVM JIT is enabled
+        if cfg!(feature = "llvmjit") {
+            build_wamrc(&wamr_root);
+        }
     }
 
     generate_bindings(&wamr_root);
