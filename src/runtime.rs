@@ -15,12 +15,16 @@ use wamr_sys::{
     RunningMode_Mode_Interp, RunningMode_Mode_LLVM_JIT, RuntimeInitArgs,
 };
 
-use crate::{host_function::HostFunctionList, RuntimeError};
+use crate::{
+    host_function::{HostFunctionList, IntoHostFunc, WrappedFunctionList},
+    RuntimeError,
+};
 
 #[allow(dead_code)]
 #[derive(Debug)]
 pub struct Runtime {
     host_functions: HostFunctionList,
+    wrapped_functions: WrappedFunctionList,
 }
 
 impl Runtime {
@@ -44,6 +48,7 @@ impl Runtime {
         match unsafe { wasm_runtime_init() } {
             true => Ok(Runtime {
                 host_functions: HostFunctionList::new("empty"),
+                wrapped_functions: WrappedFunctionList::default(),
             }),
             false => Err(RuntimeError::InitializationFailure),
         }
@@ -52,6 +57,10 @@ impl Runtime {
 
 impl Drop for Runtime {
     fn drop(&mut self) {
+        // WAMR is only torn down when its last user goes away, and must not
+        // keep pointers to the closures of this one
+        self.wrapped_functions.unregister();
+
         unsafe {
             wasm_runtime_destroy();
         }
@@ -63,6 +72,7 @@ impl Drop for Runtime {
 pub struct RuntimeBuilder {
     args: RuntimeInitArgs,
     host_functions: HostFunctionList,
+    wrapped_functions: WrappedFunctionList,
 }
 
 /// Can't build() until config allocator mode
@@ -72,6 +82,7 @@ impl Default for RuntimeBuilder {
         RuntimeBuilder {
             args,
             host_functions: HostFunctionList::new("host"),
+            wrapped_functions: WrappedFunctionList::default(),
         }
     }
 }
@@ -118,6 +129,40 @@ impl RuntimeBuilder {
         self
     }
 
+    /// Register a Rust closure, or function, as the host function
+    /// `function_name` of the import module `module_name`.
+    ///
+    /// The Wasm signature is deduced from the closure: its parameters have to
+    /// be `i32`, `u32`, `i64`, `u64`, `f32` or `f64`, and it returns nothing, one
+    /// of those, or a `Result` of them whose error makes the Wasm caller trap.
+    /// A first parameter of type `Caller` gives access to the calling instance.
+    ///
+    /// An import whose Wasm type doesn't match that signature is left
+    /// unresolved, and traps when it is called.
+    ///
+    /// ```
+    /// # use wamr_rust_sdk::{runtime::Runtime, host_function::Caller};
+    /// let runtime = Runtime::builder()
+    ///     .use_system_allocator()
+    ///     .func_wrap("host", "add", |a: i32, b: i32| a + b)
+    ///     .func_wrap("host", "peek", |caller: Caller<'_>, address: u32| {
+    ///         let mut byte = [0u8];
+    ///         caller.read_memory(address as u64, &mut byte).map(|()| byte[0] as u32)
+    ///     })
+    ///     .build();
+    /// # assert!(runtime.is_ok());
+    /// ```
+    pub fn func_wrap<Params>(
+        mut self,
+        module_name: &str,
+        function_name: &str,
+        func: impl IntoHostFunc<Params>,
+    ) -> RuntimeBuilder {
+        self.wrapped_functions
+            .wrap(module_name, function_name, func);
+        self
+    }
+
     /// create a `Runtime` instance with the configuration
     ///
     /// # Errors
@@ -134,9 +179,17 @@ impl RuntimeBuilder {
 
             wasm_runtime_full_init(&mut self.args)
         } {
-            true => Ok(Runtime {
-                host_functions: self.host_functions,
-            }),
+            true => {
+                // from now on, dropping the runtime undoes the initialization
+                let mut runtime = Runtime {
+                    host_functions: self.host_functions,
+                    wrapped_functions: self.wrapped_functions,
+                };
+                match runtime.wrapped_functions.register() {
+                    true => Ok(runtime),
+                    false => Err(RuntimeError::InitializationFailure),
+                }
+            }
             false => Err(RuntimeError::InitializationFailure),
         }
     }
